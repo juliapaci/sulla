@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 egui = "0.26.2"
 eframe = "0.26.2"
-egui_dock = "0.11" # maybe try egui_tiles aswell
+egui_dock = "0.11"
