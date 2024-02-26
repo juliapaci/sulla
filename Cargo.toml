@@ -9,3 +9,5 @@ edition = "2021"
 egui = "0.26.2"
 eframe = "0.26.2"
 egui_dock = "0.11"
+
+rfd = "0.14.0"
