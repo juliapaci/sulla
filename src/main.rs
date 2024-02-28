@@ -1,9 +1,15 @@
 use eframe::egui;
-use egui::{Frame, Ui};
-
 use egui_dock::{DockArea, DockState, NodeIndex, Style};
 
-struct TabViewer;
+use egui_file::FileDialog;
+use std::{
+  ffi::OsStr,
+  path::{Path, PathBuf},
+};
+
+struct TabViewer {
+    state: SharedState
+}
 
 impl egui_dock::TabViewer for TabViewer {
     type Tab = String;
@@ -25,16 +31,39 @@ impl egui_dock::TabViewer for TabViewer {
 impl TabViewer {
     fn file_tab(&mut self, ui: &mut egui::Ui) {
         if ui.button("open file").clicked() {
-
+            self.state.file = true;
         }
     }
 }
 
-struct SullaApp {
-    tree: DockState<String>,
+impl Default for TabViewer {
+    fn default() -> Self {
+        Self {
+            state: Default::default()
+        }
+    }
 }
 
-impl Default for SullaApp {
+#[derive(Default, Clone, Copy)]
+struct SharedState {
+    file: bool
+}
+
+// keeps track of file state
+#[derive(Default)]
+struct FileState {
+    opened_file: Option<PathBuf>,
+    open_file_dialog: Option<FileDialog>,
+}
+
+struct SullaState {
+    tree: DockState<String>,
+    state: SharedState,
+
+    file: FileState
+}
+
+impl Default for SullaState {
     fn default() -> Self {
         let mut tree = DockState::new(vec!["Timeline".to_owned()]);
 
@@ -49,29 +78,44 @@ impl Default for SullaApp {
                 .split_above(timeline, 0.5, vec!["Player".to_owned(), "Scene".to_owned()]);
 
         Self {
-            tree
+            tree,
+            state: Default::default(),
+
+            file: Default::default()
         }
     }
 }
 
-impl eframe::App for SullaApp {
+impl eframe::App for SullaState {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default()
-            .frame(Frame::central_panel(&ctx.style()).inner_margin(0.))
-            .show(ctx, |ui| {
-                DockArea::new(&mut self.tree)
-                    .style(Style::from_egui(ctx.style().as_ref()))
-                    .show(ctx, &mut TabViewer {});
+        let tv = &mut TabViewer {
+                state: self.state
+            };
 
-                if ui
-                    .selectable_label(match self.tree.find_active_focused() {
-                        Some(focused) => focused.1 == "File",
-                        None => false
-                    }, "open file")
-                    .clicked() {
-                    println!("test");
-                }
+        DockArea::new(&mut self.tree)
+            .style(Style::from_egui(ctx.style().as_ref()))
+            .show(ctx, tv);
+
+        self.state = tv.state;
+
+        if self.state.file {
+            // Show only files with the extension "txt".
+            let filter = Box::new({
+                let ext = Some(OsStr::new("txt"));
+                move |path: &Path| -> bool { path.extension() == ext }
             });
+            let mut dialog = FileDialog::open_file(self.file.opened_file.clone()).show_files_filter(filter);
+            dialog.open();
+            self.file.open_file_dialog = Some(dialog);
+
+            if let Some(dialog) = &mut self.file.open_file_dialog {
+                if dialog.show(ctx).selected() {
+                    if let Some(file) = dialog.path() {
+                        self.file.opened_file = Some(file.to_path_buf());
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -79,6 +123,6 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "sulla",
         eframe::NativeOptions::default(),
-        Box::new(|_cc| Box::<SullaApp>::default())
+        Box::new(|_cc| Box::<SullaState>::default())
     )
 }
