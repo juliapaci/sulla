@@ -4,12 +4,12 @@ use egui_dock::{DockArea, DockState, NodeIndex, Style};
 use std::path::PathBuf;
 use egui_file_dialog::FileDialog;
 
-#[derive(Default)]
-struct TabViewer {
-    state: SharedState
+// #[derive(Default)]
+struct TabViewer<'a> {
+    state: &'a mut SharedState
 }
 
-impl egui_dock::TabViewer for TabViewer {
+impl egui_dock::TabViewer for TabViewer<'_> {
     type Tab = String;
 
     fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
@@ -26,10 +26,11 @@ impl egui_dock::TabViewer for TabViewer {
     }
 }
 
-impl TabViewer {
+impl TabViewer<'_> {
     fn file_tab(&mut self, ui: &mut egui::Ui) {
-        if ui.button("open file").clicked() {
-            if self.state.file.0 || ui.button("Select file").clicked() {
+        if ui.button("open file").clicked() || self.state.file.0 {
+            self.state.file.0 = true;
+            if ui.button("Select file").clicked() {
                 // Open the file dialog to select a file.
                 self.state.file.1.file_dialog.select_file();
             }
@@ -86,14 +87,12 @@ impl Default for SullaState {
 impl eframe::App for SullaState {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let mut tv = TabViewer {
-            state: self.state
+            state: &mut self.state
         };
 
         DockArea::new(&mut self.tree)
             .style(Style::from_egui(ctx.style().as_ref()))
             .show(ctx, &mut tv);
-
-        self.state = tv.state;
     }
 }
 
