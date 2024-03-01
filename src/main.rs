@@ -4,7 +4,6 @@ use egui_dock::{DockArea, DockState, NodeIndex, Style};
 use std::path::PathBuf;
 use egui_file_dialog::FileDialog;
 
-// #[derive(Default)]
 struct TabViewer<'a> {
     state: &'a mut SharedState
 }
@@ -18,7 +17,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         match tab.as_str() {
-            "File" => self.file_tab(ui),
+            "Assets" => self.file_tab(ui),
             _ => {
                 ui.label(format!("Empty {tab} contents"));
             }
@@ -28,20 +27,75 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 
 impl TabViewer<'_> {
     fn file_tab(&mut self, ui: &mut egui::Ui) {
-        if ui.button("open file").clicked() || self.state.file.0 {
-            self.state.file.0 = true;
-            if ui.button("Select file").clicked() {
-                // Open the file dialog to select a file.
-                self.state.file.1.file_dialog.select_file();
-            }
-
-            ui.label(format!("Selected file: {:?}", self.state.file.1.selected_file));
-
-            // Update the dialog and check if the user selected a file
-            if let Some(path) = self.state.file.1.file_dialog.update(ui.ctx()).selected() {
-                self.state.file.1.selected_file = Some(path.to_path_buf());
-            }
+        if ui.add_sized([ui.min_rect().width(), 10.], egui::Button::new("Add file")).clicked() {
+            self.state.file.file_dialog.select_file();
         }
+
+        if let Some(path) = self.state.file.file_dialog.update(ui.ctx()).selected() {
+            self.state.file.selected_file = Some(path.to_path_buf());
+        }
+
+        ui.add_space(15.0);
+
+        use egui_extras::{TableBuilder, Column};
+
+        let text_height = egui::TextStyle::Body
+            .resolve(ui.style())
+            .size
+            .max(ui.spacing().interact_size.y);
+
+        TableBuilder::new(ui)
+            .striped(true)
+            .resizable(true)
+            .sense(egui::Sense::click())
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::initial(30.0).at_least(30.0).clip(true))
+            .column(Column::initial(100.0).clip(true))
+            .column(Column::auto().clip(true))
+            .column(Column::auto().clip(true))
+            .column(Column::remainder())
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.centered_and_justified(|ui| {
+                        ui.strong("Used");
+                    });
+                });
+                header.col(|ui| {
+                    ui.strong("Name");
+                });
+                header.col(|ui| {
+                    ui.strong("Size");
+                });
+                header.col(|ui| {
+                    ui.strong("Type");
+                });
+                header.col(|ui| {
+                    ui.strong("Thumbnail");
+                });
+            })
+            .body(|body| {
+                body.rows(
+                    text_height,
+                    10, |mut row| {
+                        row.col(|ui| {
+                            ui.centered_and_justified(|ui| {
+                                ui.checkbox(&mut false, "");
+                            });
+                        });
+                        row.col(|ui| {
+                            ui.label("test 1");
+                        });
+                        row.col(|ui| {
+                            ui.label("test 2");
+                        });
+                        row.col(|ui| {
+                            ui.label("test 3");
+                        });
+                        row.col(|ui| {
+                            ui.label("test 4");
+                        });
+                    })
+            });
     }
 }
 
@@ -55,7 +109,7 @@ struct FileState {
 // shared state between SullaState (app) and TabViewer (tabs)
 #[derive(Default)]
 struct SharedState {
-    file: (bool, FileState)
+    file: FileState
 }
 
 struct SullaState {
@@ -69,7 +123,7 @@ impl Default for SullaState {
 
         let [timeline, assets] =
             tree.main_surface_mut()
-                .split_left(NodeIndex::root(), 0.25, vec!["Assets".to_owned(), "File".to_owned()]);
+                .split_left(NodeIndex::root(), 0.25, vec!["Hierarchy".to_owned(), "Assets".to_owned()]);
         let [_, _inspector] =
             tree.main_surface_mut()
                 .split_below(assets, 0.5, vec!["Inspector".to_owned()]);
