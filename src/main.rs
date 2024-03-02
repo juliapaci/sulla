@@ -26,7 +26,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 }
 
 impl TabViewer<'_> {
-    fn table_ui(&self, ui: &mut egui::Ui) {
+    fn table_ui(&mut self, ui: &mut egui::Ui) {
         use egui_extras::{TableBuilder, Column};
 
         let text_height = egui::TextStyle::Body
@@ -36,7 +36,6 @@ impl TabViewer<'_> {
 
         TableBuilder::new(ui)
             .striped(true)
-            // .resizable(true)
             .sense(egui::Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .column(Column::initial(30.0).at_least(30.0).clip(true))
@@ -68,19 +67,27 @@ impl TabViewer<'_> {
                     text_height,
                     self.state.file.files.len(), |mut row| {
                         let row_index = row.index();
+
+                        row.set_selected(
+                            (self.state.file.selected_file.is_some() && self.state.file.files[row_index].path == *self.state.file.selected_file.as_ref().unwrap())
+                            || self.state.file.files[row_index].selected
+                        );
+
                         row.col(|ui| {
                             ui.centered_and_justified(|ui| {
-                                ui.checkbox(&mut false, "");
+                                ui.checkbox(&mut self.state.file.files[row_index].used, "");
                             });
                         });
+
+                        let path = &self.state.file.files[row_index].path;
                         row.col(|ui| {
-                            ui.label(self.state.file.files[row_index].file_name().unwrap().to_str().unwrap());
+                            ui.label(path.file_stem().unwrap().to_str().unwrap());
                         });
                         row.col(|ui| {
-                            ui.label(format!("{}", self.state.file.files[row_index].metadata().unwrap().len()));
+                            ui.label(format!("{}", path.metadata().unwrap().len()));
                         });
                         row.col(|ui| {
-                            ui.label(match self.state.file.files[row_index].extension() {
+                            ui.label(match path.extension() {
                                 Some(e) => e.to_str().unwrap(),
                                 None => ""
                             });
@@ -89,6 +96,10 @@ impl TabViewer<'_> {
                             // TODO: implement thumbnails for some media types
                             ui.label("todo");
                         });
+
+                        if row.response().clicked() {
+                            self.state.file.files[row_index].selected = !self.state.file.files[row_index].selected;
+                        }
                     })
             });
     }
@@ -98,21 +109,20 @@ impl TabViewer<'_> {
             self.state.file.file_dialog.select_file();
         }
 
+        ui.add_space(15.0);
+        self.table_ui(ui);
+
         if let Some(path) = self.state.file.file_dialog.update(ui.ctx()).selected() {
             self.state.file.selected_file = Some(path.to_path_buf());
 
-            match self.state.file.files.last() {
-                Some(l) => {
-                    if path != l {
-                        self.state.file.files.push(path.to_path_buf());
-                    }
-                },
-                None => self.state.file.files.push(path.to_path_buf())
+            if let Some(l) = self.state.file.files.last() {
+                if path == l.path || self.state.file.files.iter().any(|f| f.path == path.to_path_buf()) {
+                    return;
+                }
             }
-        }
 
-        ui.add_space(15.0);
-        self.table_ui(ui);
+            self.state.file.files.push(File::new(path.to_path_buf()));
+        }
     }
 }
 
@@ -122,7 +132,24 @@ struct FileState {
     file_dialog: FileDialog,
     selected_file: Option<PathBuf>,
 
-    files: Vec<PathBuf>
+    files: Vec<File>
+}
+
+#[derive(Default)]
+struct File {
+    path: PathBuf,
+    used: bool,
+    selected: bool
+}
+
+impl File {
+    fn new(path: PathBuf) -> Self {
+        Self {
+            path,
+            used: false,
+            selected: false
+        }
+    }
 }
 
 // shared state between SullaState (app) and TabViewer (tabs)
