@@ -11,4 +11,4 @@ eframe = "0.26.2"
 egui_dock = "0.11"
 egui_extras = "0.26.2"
 
-egui-file-dialog = "0.3.1"
+egui-file-dialog = "0.4"
