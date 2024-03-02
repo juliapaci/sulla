@@ -26,17 +26,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 }
 
 impl TabViewer<'_> {
-    fn file_tab(&mut self, ui: &mut egui::Ui) {
-        if ui.add_sized([ui.min_rect().width(), 10.], egui::Button::new("Add file")).clicked() {
-            self.state.file.file_dialog.select_file();
-        }
-
-        if let Some(path) = self.state.file.file_dialog.update(ui.ctx()).selected() {
-            self.state.file.selected_file = Some(path.to_path_buf());
-        }
-
-        ui.add_space(15.0);
-
+    fn table_ui(&self, ui: &mut egui::Ui) {
         use egui_extras::{TableBuilder, Column};
 
         let text_height = egui::TextStyle::Body
@@ -46,7 +36,7 @@ impl TabViewer<'_> {
 
         TableBuilder::new(ui)
             .striped(true)
-            .resizable(true)
+            // .resizable(true)
             .sense(egui::Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .column(Column::initial(30.0).at_least(30.0).clip(true))
@@ -64,7 +54,7 @@ impl TabViewer<'_> {
                     ui.strong("Name");
                 });
                 header.col(|ui| {
-                    ui.strong("Size");
+                    ui.strong("Size (B)");
                 });
                 header.col(|ui| {
                     ui.strong("Type");
@@ -76,26 +66,53 @@ impl TabViewer<'_> {
             .body(|body| {
                 body.rows(
                     text_height,
-                    10, |mut row| {
+                    self.state.file.files.len(), |mut row| {
+                        let row_index = row.index();
                         row.col(|ui| {
                             ui.centered_and_justified(|ui| {
                                 ui.checkbox(&mut false, "");
                             });
                         });
                         row.col(|ui| {
-                            ui.label("test 1");
+                            ui.label(self.state.file.files[row_index].file_name().unwrap().to_str().unwrap());
                         });
                         row.col(|ui| {
-                            ui.label("test 2");
+                            ui.label(format!("{}", self.state.file.files[row_index].metadata().unwrap().len()));
                         });
                         row.col(|ui| {
-                            ui.label("test 3");
+                            ui.label(match self.state.file.files[row_index].extension() {
+                                Some(e) => e.to_str().unwrap(),
+                                None => ""
+                            });
                         });
                         row.col(|ui| {
-                            ui.label("test 4");
+                            // TODO: implement thumbnails for some media types
+                            ui.label("todo");
                         });
                     })
             });
+    }
+
+    fn file_tab(&mut self, ui: &mut egui::Ui) {
+        if ui.add_sized([ui.min_rect().width(), 10.], egui::Button::new("Add file")).clicked() {
+            self.state.file.file_dialog.select_file();
+        }
+
+        if let Some(path) = self.state.file.file_dialog.update(ui.ctx()).selected() {
+            self.state.file.selected_file = Some(path.to_path_buf());
+
+            match self.state.file.files.last() {
+                Some(l) => {
+                    if path != l {
+                        self.state.file.files.push(path.to_path_buf());
+                    }
+                },
+                None => self.state.file.files.push(path.to_path_buf())
+            }
+        }
+
+        ui.add_space(15.0);
+        self.table_ui(ui);
     }
 }
 
@@ -103,7 +120,9 @@ impl TabViewer<'_> {
 #[derive(Default)]
 struct FileState {
     file_dialog: FileDialog,
-    selected_file: Option<PathBuf>
+    selected_file: Option<PathBuf>,
+
+    files: Vec<PathBuf>
 }
 
 // shared state between SullaState (app) and TabViewer (tabs)
