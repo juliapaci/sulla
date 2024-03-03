@@ -173,7 +173,7 @@ impl TabViewer<'_> {
                                     match asset {
                                         Asset::Object(obj) => {
                                             ui.painter().rect_filled(
-                                                obj.to_rect(),
+                                                obj.to_rect(ui),
                                                 10.0,
                                                 obj.colour
                                             );
@@ -192,10 +192,19 @@ impl TabViewer<'_> {
     }
 }
 
+#[derive(Default, Debug)]
+enum Track {
+    #[default]
+    Video,
+    Audio
+}
+
 #[derive(Default)]
 struct TimelineState {
     playing: bool,
     time: f32,
+
+    tracks: Vec<Track>,
 }
 
 #[derive(Default)]
@@ -223,6 +232,7 @@ struct ObjectConfig {
 
     appointment: f32,
     duration: f32,
+    track: (usize, Track),
 
     position: egui::Vec2,
     size: u16,
@@ -254,9 +264,9 @@ impl ObjectConfig {
                 const GAP: f32 =  15.0;
 
                 ui.strong("Timeline");
-                add_inf_drag!(ui, self.appointment, 0.0, "appointment: ");
-                add_inf_drag!(ui, self.duration, 0.0, "duration: ");
-                // ui.add(egui::ProgressBar::new(100.0).show_percentage());
+                add_inf_drag!(ui, self.appointment, 0.0, "Appointment: ");
+                add_inf_drag!(ui, self.duration, 0.0, "Duration: ");
+                ui.label(format!("Track {:?}", self.track));
                 ui.add_space(GAP);
 
                 ui.strong("Position");
@@ -273,10 +283,14 @@ impl ObjectConfig {
             });
     }
 
-    fn to_rect(&self) -> egui::Rect {
+    fn to_rect(&self, ui: &egui::Ui) -> egui::Rect {
+        let padding = 20;
+        let offset = self.appointment + ui.available_rect_before_wrap().min.x;
+        let track_width = 50;
+        let track = ui.available_rect_before_wrap().min.y + (track_width * self.track.0 + padding) as f32;
         egui::Rect {
-            min: egui::Pos2::new(self.appointment, 500.0),
-            max: egui::Pos2::new(self.appointment + self.duration, 1000.0)
+            min: egui::Pos2::new(offset, track),
+            max: egui::Pos2::new(offset + self.duration, track + track_width as f32)
         }
     }
 }
