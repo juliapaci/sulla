@@ -1,4 +1,5 @@
 use eframe::egui;
+use egui::color_picker::Alpha;
 use egui_dock::{DockArea, DockState, NodeIndex, Style};
 
 use std::path::PathBuf;
@@ -18,6 +19,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         match tab.as_str() {
             "Assets" => self.file_tab(ui),
+            "Hierarchy" => self.hierarchy_tab(ui),
             _ => {
                 ui.label(format!("Empty {tab} contents"));
             }
@@ -39,8 +41,7 @@ impl TabViewer<'_> {
             .sense(egui::Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .column(Column::initial(30.0).at_least(30.0).clip(true))
-            .column(Column::initial(100.0).clip(true))
-            .column(Column::auto().clip(true))
+            .column(Column::initial(150.0).clip(true))
             .column(Column::auto().clip(true))
             .column(Column::remainder())
             .header(20.0, |mut header| {
@@ -50,13 +51,10 @@ impl TabViewer<'_> {
                     });
                 });
                 header.col(|ui| {
-                    ui.strong("Name");
+                    ui.strong("File");
                 });
                 header.col(|ui| {
                     ui.strong("Size (B)");
-                });
-                header.col(|ui| {
-                    ui.strong("Type");
                 });
                 header.col(|ui| {
                     ui.strong("Thumbnail");
@@ -81,16 +79,11 @@ impl TabViewer<'_> {
 
                         let path = &self.state.file.files[row_index].path;
                         row.col(|ui| {
-                            ui.label(path.file_stem().unwrap().to_str().unwrap());
+                            ui.label(path.file_name().unwrap().to_str().unwrap());
+                            ui.small(path.to_str().unwrap());
                         });
                         row.col(|ui| {
                             ui.label(format!("{}", path.metadata().unwrap().len()));
-                        });
-                        row.col(|ui| {
-                            ui.label(match path.extension() {
-                                Some(e) => e.to_str().unwrap(),
-                                None => ""
-                            });
                         });
                         row.col(|ui| {
                             // TODO: implement thumbnails for some media types
@@ -122,7 +115,83 @@ impl TabViewer<'_> {
             }
 
             self.state.file.files.push(File::new(path.to_path_buf()));
+            // TODO: fix id conflict when assets have the same name
+            self.state.hierarchy.assets.push(Asset::Object(ObjectConfig::new(path.file_stem().unwrap().to_str().unwrap())))
         }
+    }
+
+    fn hierarchy_tab(&mut self, ui: &mut egui::Ui) {
+        // TODO: use context menus instead
+        if ui.button("+").clicked() || self.state.hierarchy.adding {
+            self.state.hierarchy.adding = true;
+
+            let response = ui.add(egui::TextEdit::singleline(&mut self.state.hierarchy.new_name));
+            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                // TODO: prevent name/id conflicts
+                self.state.hierarchy.assets.push(Asset::Object(ObjectConfig::new(self.state.hierarchy.new_name.as_str())));
+
+                self.state.hierarchy.new_name.clear();
+                self.state.hierarchy.adding = false;
+            }
+        }
+
+        for asset in self.state.hierarchy.assets.iter_mut() {
+            match asset {
+                Asset::Object(obj) => obj.obj_ui(ui),
+                _ => {}
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+struct HierarchyState {
+    adding: bool,       // is adding a new asset
+    new_name: String,   // new asset name
+
+    assets: Vec<Asset>
+}
+
+enum Asset {
+    Object(ObjectConfig),
+    Media((ObjectConfig, PathBuf))  // e.g. image, video
+}
+
+impl Default for Asset {
+    fn default() -> Self {
+        Self::Object(Default::default())
+    }
+}
+
+#[derive(Default)]
+struct ObjectConfig {
+    name: String,
+    position: egui::Vec2,
+    size: u16,
+    colour: egui::Color32
+}
+
+impl ObjectConfig {
+    fn new(name: &str) -> Self {
+        let mut obj: Self = Default::default();
+        obj.name = name.to_string();
+
+        obj
+    }
+
+    fn obj_ui(&mut self, ui: &mut egui::Ui) {
+        egui::CollapsingHeader::new(self.name.to_owned())
+            .show(ui, |ui| {
+                ui.strong("Position");
+                ui.add(egui::Slider::new(&mut self.position.x, -100.0..=100.0).text("x"));
+                ui.add(egui::Slider::new(&mut self.position.y, -100.0..=100.0).text("y"));
+
+                ui.strong("Size");
+                ui.add(egui::Slider::new(&mut self.size, 0..=100).text("Size"));
+
+                ui.strong("Colour");
+                egui::color_picker::color_picker_color32(ui, &mut self.colour, Alpha::Opaque);
+            });
     }
 }
 
@@ -146,7 +215,7 @@ impl File {
     fn new(path: PathBuf) -> Self {
         Self {
             path,
-            used: false,
+            used: true,
             selected: false
         }
     }
@@ -155,7 +224,8 @@ impl File {
 // shared state between SullaState (app) and TabViewer (tabs)
 #[derive(Default)]
 struct SharedState {
-    file: FileState
+    file: FileState,
+    hierarchy: HierarchyState
 }
 
 struct SullaState {
@@ -167,12 +237,9 @@ impl Default for SullaState {
     fn default() -> Self {
         let mut tree = DockState::new(vec!["Timeline".to_owned()]);
 
-        let [timeline, assets] =
+        let [timeline, _assets] =
             tree.main_surface_mut()
                 .split_left(NodeIndex::root(), 0.25, vec!["Hierarchy".to_owned(), "Assets".to_owned()]);
-        let [_, _inspector] =
-            tree.main_surface_mut()
-                .split_below(assets, 0.5, vec!["Inspector".to_owned()]);
         let [_, _player] =
             tree.main_surface_mut()
                 .split_above(timeline, 0.5, vec!["Player".to_owned(), "Scene".to_owned()]);
