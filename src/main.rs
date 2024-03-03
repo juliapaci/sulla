@@ -149,9 +149,32 @@ impl TabViewer<'_> {
     }
 
     fn timeline_tab(&mut self, ui: &mut egui::Ui) {
-        for asset in self.state.hierarchy.assets.iter() {
 
-        }
+        // for asset in self.state.hierarchy.assets.iter() {
+        //
+        // }
+        use egui_extras::{StripBuilder, Size};
+
+        StripBuilder::new(ui)
+            .size(Size::remainder().at_least(100.0)) // top cell
+            .size(Size::exact(40.0)) // bottom cell
+            .vertical(|mut strip| {
+                // Add the top 'cell'
+                strip.cell(|ui| {
+                    ui.label("Fixed");
+                });
+                // We add a nested strip in the bottom cell:
+                strip.strip(|builder| {
+                    builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
+                        strip.cell(|ui| {
+                            ui.label("Top Left");
+                        });
+                        strip.cell(|ui| {
+                            ui.label("Top Right");
+                        });
+                    });
+                });
+            });
     }
 
     fn scene_tab(&mut self, ui: &mut egui::Ui) {
