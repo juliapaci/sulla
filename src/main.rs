@@ -148,31 +148,41 @@ impl TabViewer<'_> {
         }
     }
 
+    // TODO: viewport
     fn timeline_tab(&mut self, ui: &mut egui::Ui) {
-
-        // for asset in self.state.hierarchy.assets.iter() {
-        //
-        // }
         use egui_extras::{StripBuilder, Size};
 
         StripBuilder::new(ui)
-            .size(Size::remainder().at_least(100.0)) // top cell
-            .size(Size::exact(40.0)) // bottom cell
+            .size(Size::remainder())
             .vertical(|mut strip| {
-                // Add the top 'cell'
-                strip.cell(|ui| {
-                    ui.label("Fixed");
-                });
-                // We add a nested strip in the bottom cell:
                 strip.strip(|builder| {
-                    builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                        strip.cell(|ui| {
-                            ui.label("Top Left");
+                    builder
+                        .size(Size::exact(200.0))
+                        .size(Size::remainder())
+                        .horizontal(|mut strip| {
+                            strip.cell(|ui| {
+                                if ui.button(if self.state.timeline.playing {"Pause"} else {"Play"}).clicked() {
+                                    self.state.timeline.playing = !self.state.timeline.playing;
+                                }
+
+                                ui.strong(format!("time: {}", self.state.timeline.time));
+                            });
+
+                            strip.cell(|ui| {
+                                for asset in self.state.hierarchy.assets.iter() {
+                                    match asset {
+                                        Asset::Object(obj) => {
+                                            ui.painter().rect_filled(
+                                                obj.to_rect(),
+                                                10.0,
+                                                obj.colour
+                                            );
+                                        },
+                                        _ => {}
+                                    }
+                                }
+                            });
                         });
-                        strip.cell(|ui| {
-                            ui.label("Top Right");
-                        });
-                    });
                 });
             });
     }
@@ -180,6 +190,12 @@ impl TabViewer<'_> {
     fn scene_tab(&mut self, ui: &mut egui::Ui) {
 
     }
+}
+
+#[derive(Default)]
+struct TimelineState {
+    playing: bool,
+    time: f32,
 }
 
 #[derive(Default)]
@@ -256,6 +272,13 @@ impl ObjectConfig {
                 egui::color_picker::color_picker_color32(ui, &mut self.colour, Alpha::Opaque);
             });
     }
+
+    fn to_rect(&self) -> egui::Rect {
+        egui::Rect {
+            min: egui::Pos2::new(self.appointment, 500.0),
+            max: egui::Pos2::new(self.appointment + self.duration, 1000.0)
+        }
+    }
 }
 
 // keeps track of file state
@@ -288,7 +311,8 @@ impl File {
 #[derive(Default)]
 struct SharedState {
     file: FileState,
-    hierarchy: HierarchyState
+    hierarchy: HierarchyState,
+    timeline: TimelineState
 }
 
 struct SullaState {
