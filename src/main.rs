@@ -169,11 +169,14 @@ impl TabViewer<'_> {
                             });
 
                             strip.cell(|ui| {
-                                for asset in self.state.hierarchy.assets.iter() {
+                                for asset in self.state.hierarchy.assets.iter_mut() {
                                     match asset {
                                         Asset::Object(obj) => {
-                                            if ui.add(TimelineState::block(obj)).clicked() {
-                                                println!("clicked");
+                                            let block = ui.add(TimelineState::block(obj));
+
+                                            obj.appointment += block.drag_delta().x;
+                                            if block.clicked() {
+                                                obj.selected = !obj.selected;
                                             }
                                         },
                                         _ => {}
@@ -208,7 +211,8 @@ struct TimelineState {
 impl TimelineState {
     fn display_block(ui: &mut egui::Ui, obj: &ObjectConfig) -> egui::Response {
         let size = obj.to_rect(ui);
-        let (rect, mut response) = ui.allocate_exact_size(size.size(), egui::Sense::click_and_drag());
+        let mut response = ui.allocate_rect(size, egui::Sense::click_and_drag());
+
         if response.clicked() {
             // TODO: select for scene view and stuff
             response.mark_changed();
@@ -218,13 +222,20 @@ impl TimelineState {
             response.mark_changed();
         }
 
-        response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Other, response.clicked(), ""));
-
-        if ui.is_rect_visible(rect) {
+        if ui.is_rect_visible(size) {
+            // TODO: add label with obj name in the rectangle
             ui.painter().rect_filled(
                 size,
                 10.0,
                 obj.colour
+            );
+        }
+
+        if obj.selected {
+            ui.painter().rect_stroke(
+                size,
+                10.0,
+                egui::Stroke::new(1.0, egui::Color32::WHITE)
             );
         }
 
@@ -265,7 +276,9 @@ struct ObjectConfig {
 
     position: egui::Vec2,
     size: u16,
-    colour: egui::Color32
+    colour: egui::Color32,
+
+    selected: bool
 }
 
 macro_rules! add_inf_drag {
@@ -295,7 +308,12 @@ impl ObjectConfig {
                 ui.strong("Timeline");
                 add_inf_drag!(ui, self.appointment, 0.0, "Appointment: ");
                 add_inf_drag!(ui, self.duration, 0.0, "Duration: ");
-                ui.label(format!("Track {:?}", self.track));
+
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::TOP), |ui| {
+                    ui.label("Track (");
+                    add_inf_drag!(ui, self.track.0, 0.0, "");
+                    ui.label(format!(", {:?})", self.track.1));
+                });
                 ui.add_space(GAP);
 
                 ui.strong("Position");
