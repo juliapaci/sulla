@@ -20,6 +20,8 @@ impl egui_dock::TabViewer for TabViewer<'_> {
         match tab.as_str() {
             "Assets" => self.file_tab(ui),
             "Hierarchy" => self.hierarchy_tab(ui),
+            "Timeline" => self.timeline_tab(ui),
+            "scene" => self.scene_tab(ui),
             _ => {
                 ui.label(format!("Empty {tab} contents"));
             }
@@ -122,9 +124,10 @@ impl TabViewer<'_> {
 
     fn hierarchy_tab(&mut self, ui: &mut egui::Ui) {
         // TODO: use context menus instead
-        if ui.button("+").clicked() || self.state.hierarchy.adding {
+        if ui.button("Add asset").clicked() || self.state.hierarchy.adding {
             self.state.hierarchy.adding = true;
 
+            ui.label("new asset name");
             let response = ui.add(egui::TextEdit::singleline(&mut self.state.hierarchy.new_name));
             if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 // TODO: prevent name/id conflicts
@@ -135,12 +138,24 @@ impl TabViewer<'_> {
             }
         }
 
+        ui.add_space(1.0);
+
         for asset in self.state.hierarchy.assets.iter_mut() {
             match asset {
                 Asset::Object(obj) => obj.obj_ui(ui),
                 _ => {}
             }
         }
+    }
+
+    fn timeline_tab(&mut self, ui: &mut egui::Ui) {
+        for asset in self.state.hierarchy.assets.iter() {
+
+        }
+    }
+
+    fn scene_tab(&mut self, ui: &mut egui::Ui) {
+
     }
 }
 
@@ -166,9 +181,24 @@ impl Default for Asset {
 #[derive(Default)]
 struct ObjectConfig {
     name: String,
+
+    appointment: f32,
+    duration: f32,
+
     position: egui::Vec2,
     size: u16,
     colour: egui::Color32
+}
+
+macro_rules! add_inf_drag {
+    ($ui: ident, $num: expr, $start: expr, $prefix: expr) => {
+        $ui.add(
+            egui::DragValue::new(&mut $num)
+            .speed(0.1)
+            .clamp_range($start..=f64::INFINITY)
+            .prefix($prefix)
+        );
+    };
 }
 
 impl ObjectConfig {
@@ -182,12 +212,22 @@ impl ObjectConfig {
     fn obj_ui(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new(self.name.to_owned())
             .show(ui, |ui| {
+                const GAP: f32 =  15.0;
+
+                ui.strong("Timeline");
+                add_inf_drag!(ui, self.appointment, 0.0, "appointment: ");
+                add_inf_drag!(ui, self.duration, 0.0, "duration: ");
+                // ui.add(egui::ProgressBar::new(100.0).show_percentage());
+                ui.add_space(GAP);
+
                 ui.strong("Position");
-                ui.add(egui::Slider::new(&mut self.position.x, -100.0..=100.0).text("x"));
-                ui.add(egui::Slider::new(&mut self.position.y, -100.0..=100.0).text("y"));
+                add_inf_drag!(ui, self.position.x, f64::NEG_INFINITY, "x: ");
+                add_inf_drag!(ui, self.position.y, f64::NEG_INFINITY, "y: ");
+                ui.add_space(GAP);
 
                 ui.strong("Size");
                 ui.add(egui::Slider::new(&mut self.size, 0..=100).text("Size"));
+                ui.add_space(GAP);
 
                 ui.strong("Colour");
                 egui::color_picker::color_picker_color32(ui, &mut self.colour, Alpha::Opaque);
@@ -230,7 +270,7 @@ struct SharedState {
 
 struct SullaState {
     tree: DockState<String>,
-    state: SharedState,
+    state: SharedState
 }
 
 impl Default for SullaState {
