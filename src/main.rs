@@ -172,11 +172,9 @@ impl TabViewer<'_> {
                                 for asset in self.state.hierarchy.assets.iter() {
                                     match asset {
                                         Asset::Object(obj) => {
-                                            ui.painter().rect_filled(
-                                                obj.to_rect(ui),
-                                                10.0,
-                                                obj.colour
-                                            );
+                                            if ui.add(TimelineState::block(obj)).clicked() {
+                                                println!("clicked");
+                                            }
                                         },
                                         _ => {}
                                     }
@@ -205,6 +203,37 @@ struct TimelineState {
     time: f32,
 
     tracks: Vec<Track>,
+}
+
+impl TimelineState {
+    fn display_block(ui: &mut egui::Ui, obj: &ObjectConfig) -> egui::Response {
+        let size = obj.to_rect(ui);
+        let (rect, mut response) = ui.allocate_exact_size(size.size(), egui::Sense::click_and_drag());
+        if response.clicked() {
+            // TODO: select for scene view and stuff
+            response.mark_changed();
+        }
+        if response.dragged() {
+            // TODO: change appointment, duration (if dragged on the edge), etc.
+            response.mark_changed();
+        }
+
+        response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Other, response.clicked(), ""));
+
+        if ui.is_rect_visible(rect) {
+            ui.painter().rect_filled(
+                size,
+                10.0,
+                obj.colour
+            );
+        }
+
+        response
+    }
+
+    fn block<'a> (obj: &'a ObjectConfig) -> impl egui::Widget + 'a {
+        move |ui: &mut egui::Ui| Self::display_block(ui, obj)
+    }
 }
 
 #[derive(Default)]
