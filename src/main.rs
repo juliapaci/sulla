@@ -21,7 +21,8 @@ impl egui_dock::TabViewer for TabViewer<'_> {
             "Assets" => self.file_tab(ui),
             "Hierarchy" => self.hierarchy_tab(ui),
             "Timeline" => self.timeline_tab(ui),
-            "scene" => self.scene_tab(ui),
+            "Timeline Options" => self.timeline_options_tab(ui),
+            "Scene" => self.scene_tab(ui),
             _ => {
                 ui.label(format!("Empty {tab} contents"));
             }
@@ -148,44 +149,30 @@ impl TabViewer<'_> {
         }
     }
 
-    // TODO: viewport
+    // TODO: viewport and possibly make this a custom widget?
     fn timeline_tab(&mut self, ui: &mut egui::Ui) {
-        use egui_extras::{StripBuilder, Size};
+        for asset in self.state.hierarchy.assets.iter_mut() {
+            match asset {
+                Asset::Object(obj) => {
+                    let block = ui.add(TimelineState::block(obj));
 
-        StripBuilder::new(ui)
-            .size(Size::remainder())
-            .vertical(|mut strip| {
-                strip.strip(|builder| {
-                    builder
-                        .size(Size::exact(200.0))
-                        .size(Size::remainder())
-                        .horizontal(|mut strip| {
-                            strip.cell(|ui| {
-                                if ui.button(if self.state.timeline.playing {"Pause"} else {"Play"}).clicked() {
-                                    self.state.timeline.playing = !self.state.timeline.playing;
-                                }
+                    obj.appointment += block.drag_delta().x;
+                    obj.appointment = obj.appointment.max(0.0);
+                    if block.clicked() {
+                        obj.selected = !obj.selected;
+                    }
+                },
+                _ => {}
+            }
+        }
+    }
 
-                                ui.strong(format!("time: {}", self.state.timeline.time));
-                            });
+    fn timeline_options_tab(&mut self, ui: &mut egui::Ui) {
+        if ui.button(if self.state.timeline.playing {"Pause"} else {"Play"}).clicked() {
+            self.state.timeline.playing = !self.state.timeline.playing;
+        }
 
-                            strip.cell(|ui| {
-                                for asset in self.state.hierarchy.assets.iter_mut() {
-                                    match asset {
-                                        Asset::Object(obj) => {
-                                            let block = ui.add(TimelineState::block(obj));
-
-                                            obj.appointment += block.drag_delta().x;
-                                            if block.clicked() {
-                                                obj.selected = !obj.selected;
-                                            }
-                                        },
-                                        _ => {}
-                                    }
-                                }
-                            });
-                        });
-                });
-            });
+        ui.strong(format!("time: {}", self.state.timeline.time));
     }
 
     fn scene_tab(&mut self, ui: &mut egui::Ui) {
@@ -209,6 +196,7 @@ struct TimelineState {
 }
 
 impl TimelineState {
+    // TODO: fix weird stuff happening with mutliple blocks
     fn display_block(ui: &mut egui::Ui, obj: &ObjectConfig) -> egui::Response {
         let size = obj.to_rect(ui);
         let mut response = ui.allocate_rect(size, egui::Sense::click_and_drag());
@@ -332,9 +320,9 @@ impl ObjectConfig {
 
     fn to_rect(&self, ui: &egui::Ui) -> egui::Rect {
         let padding = 20;
-        let offset = self.appointment + ui.available_rect_before_wrap().min.x;
+        let offset = self.appointment + ui.available_size().x/* ui.available_rect_before_wrap().min.x */;
         let track_width = 50;
-        let track = ui.available_rect_before_wrap().min.y + (track_width * self.track.0 + padding) as f32;
+        let track = ui.available_size().y + (track_width * self.track.0 + padding) as f32;
         egui::Rect {
             min: egui::Pos2::new(offset, track),
             max: egui::Pos2::new(offset + self.duration, track + track_width as f32)
@@ -388,6 +376,9 @@ impl Default for SullaState {
         let [timeline, _assets] =
             tree.main_surface_mut()
                 .split_left(NodeIndex::root(), 0.25, vec!["Hierarchy".to_owned(), "Assets".to_owned()]);
+        let [_, _timeline_options] =
+            tree.main_surface_mut()
+                .split_left(timeline, 0.20, vec!["Timeline Options".to_owned()]);
         let [_, _player] =
             tree.main_surface_mut()
                 .split_above(timeline, 0.5, vec!["Player".to_owned(), "Scene".to_owned()]);
